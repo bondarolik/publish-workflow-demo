@@ -1,0 +1,77 @@
+name: Publish PR pre-release (dry run)
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened]
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: PR number (for manual demo)
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  pull-requests: write
+
+concurrency:
+  group: publish-pr-${{ github.event.pull_request.number || inputs.pr_number }}
+  cancel-in-progress: true
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Resolve PR metadata
+        id: pr
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            echo "number=${{ inputs.pr_number }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "number=${{ github.event.pull_request.number }}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Compute version and publish (dry run)
+        env:
+          PR_NUMBER: ${{ steps.pr.outputs.number }}
+          CHANNEL: PR
+          DIST_TAG: pr-${{ steps.pr.outputs.number }}
+        run: |
+          chmod +x scripts/*.sh
+          VERSION="$(./scripts/compute-version.sh pr "${PR_NUMBER}" "${GITHUB_RUN_NUMBER}")"
+          echo "VERSION=${VERSION}" >> "$GITHUB_ENV"
+          export VERSION
+          ./scripts/publish.sh
+
+      - name: Comment on PR
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        env:
+          VERSION: ${{ env.VERSION }}
+        with:
+          script: |
+            const pr = context.payload.pull_request.number;
+            const version = process.env.VERSION;
+            const tag = `pr-${pr}`;
+            const body = [
+              '### DRY RUN — PR pre-release',
+              '',
+              'No package was published. In production this would publish to CodeArtifact:',
+              '',
+              `- **Version:** \`${version}\``,
+              `- **Dist-tag:** \`${tag}\``,
+              `- **Would install:** \`pnpm add @lifestance/protos-demo@${tag}\``,
+              '',
+              '_Add label \`ready-for-qa\` when this change should enter the staging channel._'
+            ].join('\n');
+            github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: pr,
+              body
+            });

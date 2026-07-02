@@ -1,0 +1,6 @@
+{
+  "name": "@lifestance/protos-demo",
+  "version": "1.0.0",
+  "description": "Dry-run demo for proto PR / staging / main workflow",
+  "private": true
+}

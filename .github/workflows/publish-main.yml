@@ -1,0 +1,60 @@
+name: Publish stable release (dry run)
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: publish-main
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Compute version and publish (dry run)
+        env:
+          CHANNEL: STABLE
+          DIST_TAG: latest
+        run: |
+          chmod +x scripts/*.sh
+          VERSION="$(./scripts/compute-version.sh stable)"
+          echo "VERSION=${VERSION}" >> "$GITHUB_ENV"
+          export VERSION
+          ./scripts/publish.sh
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          if git ls-remote --exit-code --tags origin "refs/tags/${VERSION}" >/dev/null 2>&1; then
+            echo "::error::Tag ${VERSION} already exists on origin. Bump package.json before merging to main."
+            exit 1
+          fi
+
+          gh release create "${VERSION}" \
+            --target "${GITHUB_SHA}" \
+            --generate-notes
+
+          RELEASE_URL="$(gh release view "${VERSION}" --json url -q .url)"
+          echo "Created GitHub Release ${VERSION}: ${RELEASE_URL}"
+          echo "::notice title=GitHub Release::${VERSION} — ${RELEASE_URL}"
+
+          if [[ -n "${GITHUB_STEP_SUMMARY:-}" ]]; then
+            {
+              echo "### GitHub Release"
+              echo ""
+              echo "- Tag: \`${VERSION}\`"
+              echo "- Commit: \`${GITHUB_SHA}\`"
+              echo "- [View release](${RELEASE_URL})"
+              echo "- Notes: auto-generated from merged PRs since the previous release"
+            } >> "${GITHUB_STEP_SUMMARY}"
+          fi

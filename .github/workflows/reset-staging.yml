@@ -1,0 +1,28 @@
+name: Reset staging from main
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  reset:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Reset staging to main
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          if git ls-remote --exit-code --heads origin staging; then
+            git checkout staging
+            git reset --hard origin/main
+          else
+            git checkout -B staging origin/main
+          fi
+          git push origin staging --force-with-lease
+          echo "staging now matches main."

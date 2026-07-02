@@ -1,0 +1,82 @@
+name: Promote to staging
+
+on:
+  pull_request:
+    types: [labeled]
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: PR number to promote
+        required: true
+        type: string
+
+permissions:
+  contents: write
+  pull-requests: read
+
+concurrency:
+  group: promote-staging
+  cancel-in-progress: false
+
+jobs:
+  promote:
+    if: |
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.label.name == 'ready-for-qa' && github.event.pull_request.base.ref == 'main')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Resolve PR number
+        id: pr
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            echo "number=${{ inputs.pr_number }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "number=${{ github.event.pull_request.number }}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Fetch PR head and squash-merge into staging
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ steps.pr.outputs.number }}
+        run: |
+          set -euo pipefail
+
+          PR_JSON="$(gh pr view "${PR_NUMBER}" --json headRefName,title,number,state)"
+          STATE="$(echo "${PR_JSON}" | jq -r '.state')"
+          if [[ "${STATE}" != "OPEN" ]]; then
+            echo "PR #${PR_NUMBER} is not open."
+            exit 1
+          fi
+
+          HEAD_REF="$(echo "${PR_JSON}" | jq -r '.headRefName')"
+          PR_TITLE="$(echo "${PR_JSON}" | jq -r '.title')"
+
+          git fetch origin "${HEAD_REF}"
+          if git ls-remote --exit-code --heads origin staging; then
+            git fetch origin staging
+            git checkout staging
+          else
+            git checkout -b staging origin/main
+          fi
+
+          git merge --squash "origin/${HEAD_REF}"
+
+          if git diff --cached --quiet; then
+            echo "Nothing to promote — staging already contains this change."
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git commit -m "Promote PR #${PR_NUMBER} to staging: ${PR_TITLE}"
+          git push origin staging
+
+      - name: Summary
+        run: |
+          echo "Promoted PR #${{ steps.pr.outputs.number }} to staging."
+          echo "publish-staging workflow will log @staging publish on push."

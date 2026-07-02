@@ -1,0 +1,30 @@
+name: Publish staging (dry run)
+
+on:
+  push:
+    branches: [staging]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: publish-staging
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Compute version and publish (dry run)
+        env:
+          CHANNEL: STAGING
+          DIST_TAG: staging
+        run: |
+          chmod +x scripts/*.sh
+          VERSION="$(./scripts/compute-version.sh staging "${GITHUB_RUN_NUMBER}")"
+          echo "VERSION=${VERSION}" >> "$GITHUB_ENV"
+          export VERSION
+          ./scripts/publish.sh
