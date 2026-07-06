@@ -4,9 +4,21 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
+    inputs:
+      version_impact:
+        description: Version impact override (manual demo)
+        required: true
+        type: choice
+        default: minor
+        options:
+          - patch
+          - minor
+          - major
+          - none
 
 permissions:
   contents: write
+  pull-requests: read
 
 concurrency:
   group: publish-main
@@ -17,26 +29,84 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Resolve version impact
+        id: release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          MANUAL_IMPACT: ${{ inputs.version_impact }}
+        run: |
+          chmod +x scripts/*.sh
+          PR_NUMBER=""
+
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            IMPACT="${MANUAL_IMPACT}"
+          else
+            PR_NUMBER="$(gh api "/repos/${GITHUB_REPOSITORY}/commits/${GITHUB_SHA}/pulls" --jq '.[0].number // empty')"
+            if [[ -z "${PR_NUMBER}" ]]; then
+              echo "::error::No associated PR found for ${GITHUB_SHA}. Merge to main via pull request with version impact."
+              exit 1
+            fi
+
+            gh pr view "${PR_NUMBER}" --json body -q .body > /tmp/pr-body.md
+            IMPACT="$(./scripts/parse-version-impact.sh /tmp/pr-body.md)"
+          fi
+
+          echo "impact=${IMPACT}" >> "$GITHUB_OUTPUT"
+          echo "Version impact: ${IMPACT}"
+
+          if [[ "${IMPACT}" == "none" ]]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if [[ "${IMPACT}" == "major" && "${{ github.event_name }}" != "workflow_dispatch" ]]; then
+            LABELS="$(gh pr view "${PR_NUMBER}" --json labels -q '[.labels[].name] | join(",")')"
+            ./scripts/validate-version-impact.sh \
+              --body /tmp/pr-body.md \
+              --labels "${LABELS}"
+          fi
+
+          VERSION="$(./scripts/compute-version.sh stable "${IMPACT}")"
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "skip=false" >> "$GITHUB_OUTPUT"
+          echo "Next stable version: ${VERSION}"
+
+      - name: Skip release (version impact none)
+        if: steps.release.outputs.skip == 'true'
+        run: |
+          echo "Version impact is none — skipping package publish, git tag, and GitHub Release."
+          if [[ -n "${GITHUB_STEP_SUMMARY:-}" ]]; then
+            {
+              echo "### Skipped stable release"
+              echo ""
+              echo "This merge was classified as **none** (docs / CI / markdown only)."
+              echo "No tag, GitHub Release, or package publish was created."
+            } >> "${GITHUB_STEP_SUMMARY}"
+          fi
 
       - name: Compute version and publish (dry run)
+        if: steps.release.outputs.skip != 'true'
         env:
           CHANNEL: STABLE
           DIST_TAG: latest
+          VERSION: ${{ steps.release.outputs.version }}
         run: |
-          chmod +x scripts/*.sh
-          VERSION="$(./scripts/compute-version.sh stable)"
-          echo "VERSION=${VERSION}" >> "$GITHUB_ENV"
           export VERSION
           ./scripts/publish.sh
 
       - name: Create GitHub Release
+        if: steps.release.outputs.skip != 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ steps.release.outputs.version }}
         run: |
           set -euo pipefail
 
           if git ls-remote --exit-code --tags origin "refs/tags/${VERSION}" >/dev/null 2>&1; then
-            echo "::error::Tag ${VERSION} already exists on origin. Bump package.json before merging to main."
+            echo "::error::Tag ${VERSION} already exists on origin."
             exit 1
           fi
 
@@ -53,6 +123,7 @@ jobs:
               echo "### GitHub Release"
               echo ""
               echo "- Tag: \`${VERSION}\`"
+              echo "- Version impact: \`${{ steps.release.outputs.impact }}\`"
               echo "- Commit: \`${GITHUB_SHA}\`"
               echo "- [View release](${RELEASE_URL})"
               echo "- Notes: auto-generated from merged PRs since the previous release"

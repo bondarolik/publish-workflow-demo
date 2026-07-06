@@ -1,0 +1,36 @@
+name: Pull Request
+description: Proto change targeting main
+body:
+  - type: dropdown
+    id: version-impact
+    attributes:
+      label: Version impact
+      description: >
+        Required. Select exactly one. Major requires the version:major-approved
+        label from the git guardian after tech meeting approval. See docs/VERSIONING_POLICY.md.
+      options:
+        - patch
+        - minor
+        - major
+        - none
+    validations:
+      required: true
+
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: What changed and why?
+      placeholder: Describe the proto change and consumer impact.
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: Checklist
+      options:
+        - label: Version impact matches the change (proto/contracts vs docs-only)
+          required: true
+        - label: For major — tech meeting held and version:major-approved label added
+          required: false

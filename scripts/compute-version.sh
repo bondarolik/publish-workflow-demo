@@ -1,30 +1,51 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Computes publish version from package.json base version.
+# Computes publish version strings from the latest git tag (source of truth on main).
+#
 # Usage:
-#   compute-version.sh pr <pr_number> <run_number>
+#   compute-version.sh latest
+#   compute-version.sh bump <patch|minor|major>
+#   compute-version.sh pr <impact> <pr_number> <run_number>
 #   compute-version.sh staging <run_number>
-#   compute-version.sh stable
+#   compute-version.sh stable <impact>
 
-CHANNEL="${1:?channel required: pr|staging|stable}"
-BASE="$(jq -r '.version' package.json)"
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# shellcheck source=scripts/version-lib.sh
+source "${ROOT}/scripts/version-lib.sh"
 
-case "${CHANNEL}" in
+COMMAND="${1:?command required}"
+
+case "${COMMAND}" in
+  latest)
+    get_latest_version
+    ;;
+  bump)
+    IMPACT="${2:?impact required}"
+    CURRENT="$(get_latest_version)"
+    bump_semver "${CURRENT}" "${IMPACT}"
+    ;;
   pr)
-    PR_NUMBER="${2:?PR number required}"
-    RUN_NUMBER="${3:?run number required}"
-    echo "${BASE}-pr.${PR_NUMBER}.${RUN_NUMBER}"
+    IMPACT="${2:?impact required}"
+    PR_NUMBER="${3:?PR number required}"
+    RUN_NUMBER="${4:?run number required}"
+    BASE="$(get_latest_version)"
+    NEXT="$(bump_semver "${BASE}" "${IMPACT}")"
+    echo "${NEXT}-pr.${PR_NUMBER}.${RUN_NUMBER}"
     ;;
   staging)
     RUN_NUMBER="${2:?run number required}"
+    BASE="$(get_latest_version)"
     echo "${BASE}-staging.${RUN_NUMBER}"
     ;;
   stable)
-    echo "${BASE}"
+    IMPACT="${2:?impact required}"
+    BASE="$(get_latest_version)"
+    bump_semver "${BASE}" "${IMPACT}"
     ;;
   *)
-    echo "Unknown channel: ${CHANNEL}" >&2
+    echo "Unknown command: ${COMMAND}" >&2
+    echo "Usage: compute-version.sh latest|bump|pr|staging|stable" >&2
     exit 1
     ;;
 esac
