@@ -21,5 +21,12 @@ fi
 
 TMP="$(mktemp)"
 jq --arg version "${VERSION}" '.version = $version' "${PACKAGE_JSON}" > "${TMP}"
+
+if ! jq empty "${TMP}" 2>/dev/null; then
+  rm -f "${TMP}"
+  echo "jq produced invalid JSON for ${PACKAGE_JSON}" >&2
+  exit 1
+fi
+
 mv "${TMP}" "${PACKAGE_JSON}"
 echo "Updated package.json: ${CURRENT} → ${VERSION}"

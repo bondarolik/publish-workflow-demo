@@ -24,6 +24,31 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Validate package.json
+        id: package_json
+        run: |
+          chmod +x scripts/*.sh
+          ./scripts/validate-package-json.sh
+
+      - name: Comment on invalid package.json
+        if: failure() && steps.package_json.outcome == 'failure'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh pr comment "${{ github.event.pull_request.number }}" --body "$(cat <<'EOF'
+          ### Invalid \`package.json\`
+
+          **Status:** workflows cannot run — \`package.json\` is not valid JSON.
+
+          **Common cause:** a \`// comment\` or manual edit was added. JSON does not allow comments.
+
+          **Fix:**
+          1. Remove any comments from \`package.json\`
+          2. Do **not** bump \`version\` manually — it is synced automatically after stable releases on \`main\`
+          3. Push and re-run checks
+          EOF
+          )"
+
       - name: Write PR body
         uses: actions/github-script@v7
         with:

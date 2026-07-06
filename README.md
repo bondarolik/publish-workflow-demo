@@ -146,6 +146,7 @@ Each publish job prints a banner and writes a **Job summary**:
 | `version-impact` fails: multiple selections | Uncheck extras — only one of patch / minor / major / none |
 | `version-impact` fails: major | Git guardian adds `version:major-approved` |
 | `version-impact` fails: none + proto file | Change impact to patch/minor/major, or restrict PR to allowlisted paths |
+| `Invalid package.json` / `ERR_INVALID_PACKAGE_CONFIG` | Remove `//` comments from `package.json`; never edit `version` manually |
 | No PR comment | Check workflow has `pull-requests: write`; bot comments are upserted (one per topic) |
 | Promote failed / conflict | See upserted **Promote to staging** comment on the PR |
 | Promote does nothing | Label must be exactly `ready-for-qa`; PR must target `main` |
