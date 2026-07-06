@@ -2,6 +2,10 @@ syntax = "proto3";
 
 package team;
 
+message Team {
+  int32 id;
+}
+
 message Player {
   int32 id;
   string first_name;
