@@ -1,4 +1,10 @@
-# Demo contract file
+syntax = "proto3";
 
-Edit this file in a PR to simulate a proto change.
-The workflows react to git events — nothing is published to a registry.
+package demo;
+
+service SomeRpcCall {
+  rpc healthcheck (Empty) returns (HealthcheckResponse);
+}
+
+
+message Empty {};
