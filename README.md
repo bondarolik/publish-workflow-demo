@@ -60,7 +60,7 @@ Full rules: [docs/VERSIONING_POLICY.md](docs/VERSIONING_POLICY.md).
 | `version-impact.yml` | PR opened/updated → `main` | Required check — validates version impact; then chains **Publish PR pre-release** on success |
 | `publish-pr.yml` | Called by `version-impact` (or manual dispatch) | Logs preview version + PR comment with `@pr-{N}` |
 | `promote-to-staging.yml` | Label `ready-for-qa` or manual | Squash-merge PR into `staging` |
-| `publish-staging.yml` | Push to `staging` | Logs `@staging` version |
+| `publish-staging.yml` | Push to `staging` | Logs `@staging` version + comments on the promoted PR |
 | `publish-main.yml` | Push to `main` | Logs stable `@latest` (dry run) + creates GitHub Release (skipped when impact is `none`) |
 | `reset-staging.yml` | Manual | Resets `staging` to match `main` |
 
@@ -87,6 +87,7 @@ Every workflow supports **Run workflow** for manual demo triggers.
 2. Show **Promote to staging** → new squash commit on `staging`
 3. Show **Publish staging** triggered by push:
    - Log: `1.2.0-staging.{run}` / `@staging`
+   - PR comment with staging version and `@staging` install hint
 
 ### Scene 3 — Stable release
 
@@ -99,15 +100,16 @@ Every workflow supports **Run workflow** for manual demo triggers.
 ### Scene 4 — Docs-only (none)
 
 1. Open PR that only changes `README.md` or `.github/**`
-2. Select **none** under Version Impact
-3. Show **`version-impact`** passes; **Publish PR** comments that pre-release is skipped
-4. Merge → **Publish stable release** skips tag and release
+2. Check **none** under Version Impact
+3. **`version-impact`** passes → **Publish PR** comments that pre-release is skipped
+4. Merge → **Publish stable release** skips tag/release and **comments on the PR**
 
 ### Scene 5 — Major (optional)
 
 1. Open PR with breaking proto change; check **major** under Version Impact
-2. Show **`version-impact`** fails until guardian adds **`version:major-approved`**
-3. After label + merge → tag `2.0.0`
+2. **`version-impact`** fails → PR comment explains guardian approval is required
+3. Guardian adds **`version:major-approved`** → PR comment confirms major is cleared + pre-release preview
+4. Merge → stable release comment with `X.0.0` tag + GitHub Release link
 
 ### Scene 6 — Parallel PRs
 
@@ -144,7 +146,8 @@ Each publish job prints a banner and writes a **Job summary**:
 | `version-impact` fails: multiple selections | Uncheck extras — only one of patch / minor / major / none |
 | `version-impact` fails: major | Git guardian adds `version:major-approved` |
 | `version-impact` fails: none + proto file | Change impact to patch/minor/major, or restrict PR to allowlisted paths |
-| No PR comment | Check workflow has `pull-requests: write` |
+| No PR comment | Check workflow has `pull-requests: write`; bot comments are upserted (one per topic) |
+| Promote failed / conflict | See upserted **Promote to staging** comment on the PR |
 | Promote does nothing | Label must be exactly `ready-for-qa`; PR must target `main` |
 | Release failed: tag exists | A release with that version already exists — check latest tag |
 | Staging out of date | Run **Reset staging from main** |

@@ -16,6 +16,9 @@ concurrency:
 jobs:
   validate:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
     steps:
       - uses: actions/checkout@v4
         with:
@@ -29,6 +32,8 @@ jobs:
             fs.writeFileSync('/tmp/pr-body.md', context.payload.pull_request.body || '');
 
       - name: Validate version impact
+        id: validate
+        continue-on-error: true
         env:
           LABELS_CSV: ${{ join(github.event.pull_request.labels.*.name, ',') }}
         run: |
@@ -39,12 +44,144 @@ jobs:
             --base-ref "origin/${{ github.event.pull_request.base.ref }}" \
             --head-ref HEAD
 
+      - name: Comment on PR
+        if: always()
+        uses: actions/github-script@v7
+        env:
+          VALIDATE_OUTCOME: ${{ steps.validate.outcome }}
+          FAILURE_REASON: ${{ env.VERSION_IMPACT_FAILURE_REASON }}
+          DISALLOWED_PATHS: ${{ env.VERSION_IMPACT_DISALLOWED_PATHS }}
+        with:
+          script: |
+            const { upsertPrComment, findMarkedComment } = require('./.github/scripts/upsert-pr-comment.js');
+
+            const pr = context.payload.pull_request.number;
+            const outcome = process.env.VALIDATE_OUTCOME;
+            const reason = process.env.FAILURE_REASON || '';
+            const labelAdded = context.payload.action === 'labeled'
+              ? context.payload.label?.name
+              : '';
+            const hasMajorApproved = context.payload.pull_request.labels
+              .some((label) => label.name === 'version:major-approved');
+
+            let body = null;
+
+            if (outcome === 'failure') {
+              if (reason === 'major_pending_approval') {
+                body = [
+                  '### Version impact — major approval required',
+                  '',
+                  'This PR is marked as a **major** release (breaking change).',
+                  '',
+                  '**Status:** `version-impact` check failed — merge is blocked.',
+                  '',
+                  '**Next steps:**',
+                  '1. Discuss in a tech meeting',
+                  '2. Git guardian adds label `version:major-approved`',
+                  '3. Re-run checks and merge when green',
+                  '',
+                  '_Until approved, no stable major release will be created on merge._'
+                ].join('\n');
+              } else if (reason === 'none_disallowed_paths') {
+                const paths = (process.env.DISALLOWED_PATHS || '').split(/[ ,]+/).filter(Boolean);
+                body = [
+                  '### Version impact — `none` not allowed for these files',
+                  '',
+                  '**Version impact** is set to `none`, but this PR changes files outside the docs/CI allowlist.',
+                  '',
+                  '**Disallowed paths:**',
+                  ...paths.map((path) => `- \`${path}\``),
+                  '',
+                  '**Fix:** change version impact to `patch`, `minor`, or `major`, or limit the PR to docs/markdown/`.github` only.'
+                ].join('\n');
+              } else if (reason === 'multiple_selection') {
+                body = [
+                  '### Version impact — check exactly one box',
+                  '',
+                  'Multiple options are checked under **Version Impact**.',
+                  '',
+                  'Check exactly one: `patch`, `minor`, `major`, or `none`.'
+                ].join('\n');
+              } else if (reason === 'missing_selection') {
+                body = [
+                  '### Version impact — selection required',
+                  '',
+                  'Check exactly one box under **Version Impact** in the PR description:',
+                  '',
+                  '- `patch` — bug fix',
+                  '- `minor` — new backward-compatible feature',
+                  '- `major` — breaking change (also needs `version:major-approved`)',
+                  '- `none` — docs / CI only'
+                ].join('\n');
+              }
+            } else if (
+              outcome === 'success' &&
+              labelAdded === 'version:major-approved' &&
+              hasMajorApproved
+            ) {
+              await upsertPrComment(github, context, core, {
+                marker: 'version-impact-major-approved',
+                body: [
+                  '### Major release approved',
+                  '',
+                  'Label `version:major-approved` was added by the git guardian.',
+                  '',
+                  '**Status:** `version-impact` check passed — this PR is cleared for merge.',
+                  '',
+                  'On merge to `main`, a **major** stable release will be created (next `X.0.0` tag + GitHub Release).'
+                ].join('\n'),
+              });
+
+              const prior = await findMarkedComment(github, context, pr, 'version-impact');
+              if (prior) {
+                await github.rest.issues.deleteComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  comment_id: prior.id,
+                });
+              }
+              return;
+            } else if (outcome === 'success') {
+              const prior = await findMarkedComment(github, context, pr, 'version-impact');
+              const hadError = prior?.body?.includes('check failed')
+                || prior?.body?.includes('required')
+                || prior?.body?.includes('not allowed')
+                || prior?.body?.includes('exactly one');
+
+              if (hadError) {
+                body = [
+                  '### Version impact — check passed',
+                  '',
+                  '`version-impact` validation succeeded. Merge when all required checks are green.'
+                ].join('\n');
+              } else {
+                core.info('Validation passed — no version-impact comment update needed.');
+                return;
+              }
+            }
+
+            if (!body) {
+              core.info('No PR comment needed for this validation outcome.');
+              return;
+            }
+
+            await upsertPrComment(github, context, core, {
+              marker: 'version-impact',
+              body,
+            });
+
+      - name: Fail when validation failed
+        if: steps.validate.outcome == 'failure'
+        run: exit 1
+
   publish-pr:
     needs: validate
     if: |
-      success() &&
-      github.event.action != 'labeled' &&
-      github.event.action != 'unlabeled'
+      needs.validate.result == 'success' &&
+      (
+        (github.event.action != 'labeled' && github.event.action != 'unlabeled') ||
+        (github.event.action == 'labeled' && github.event.label.name == 'version:major-approved')
+      )
     permissions:
       contents: read
       pull-requests: write

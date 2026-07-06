@@ -18,7 +18,7 @@ on:
 
 permissions:
   contents: write
-  pull-requests: read
+  pull-requests: write
 
 concurrency:
   group: publish-main
@@ -55,6 +55,7 @@ jobs:
           fi
 
           echo "impact=${IMPACT}" >> "$GITHUB_OUTPUT"
+          echo "pr_number=${PR_NUMBER}" >> "$GITHUB_OUTPUT"
           echo "Version impact: ${IMPACT}"
 
           if [[ "${IMPACT}" == "none" ]]; then
@@ -87,6 +88,30 @@ jobs:
             } >> "${GITHUB_STEP_SUMMARY}"
           fi
 
+      - name: Comment on PR — docs-only merge (none)
+        if: steps.release.outputs.skip == 'true' && steps.release.outputs.pr_number != ''
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { upsertPrComment } = require('./.github/scripts/upsert-pr-comment.js');
+            const pr = Number('${{ steps.release.outputs.pr_number }}');
+
+            const body = [
+              '### DRY RUN — Stable release skipped',
+              '',
+              '**Version impact:** `none` (docs / CI / markdown only).',
+              '',
+              'This PR was merged to `main`. No git tag, GitHub Release, or package publish was created.',
+              '',
+              '_Correct for documentation and workflow-only changes._'
+            ].join('\n');
+
+            await upsertPrComment(github, context, core, {
+              marker: 'publish-main',
+              body,
+              prNumber: pr,
+            });
+
       - name: Compute version and publish (dry run)
         if: steps.release.outputs.skip != 'true'
         env:
@@ -98,6 +123,8 @@ jobs:
           ./scripts/publish.sh
 
       - name: Create GitHub Release
+        id: github_release
+        continue-on-error: true
         if: steps.release.outputs.skip != 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -115,6 +142,7 @@ jobs:
             --generate-notes
 
           RELEASE_URL="$(gh release view "${VERSION}" --json url -q .url)"
+          echo "release_url=${RELEASE_URL}" >> "$GITHUB_OUTPUT"
           echo "Created GitHub Release ${VERSION}: ${RELEASE_URL}"
           echo "::notice title=GitHub Release::${VERSION} — ${RELEASE_URL}"
 
@@ -129,3 +157,75 @@ jobs:
               echo "- Notes: auto-generated from merged PRs since the previous release"
             } >> "${GITHUB_STEP_SUMMARY}"
           fi
+
+      - name: Comment on PR — release failed
+        if: steps.release.outputs.skip != 'true' && steps.github_release.outcome == 'failure' && steps.release.outputs.pr_number != ''
+        uses: actions/github-script@v7
+        env:
+          VERSION: ${{ steps.release.outputs.version }}
+        with:
+          script: |
+            const { upsertPrComment } = require('./.github/scripts/upsert-pr-comment.js');
+            const pr = Number('${{ steps.release.outputs.pr_number }}');
+            const version = process.env.VERSION;
+
+            const body = [
+              '### Stable release — failed',
+              '',
+              `Could not create git tag / GitHub Release \`${version}\`.`,
+              '',
+              '**Common cause:** this version tag already exists on `main`.',
+              '',
+              '**Fix:** use the correct version impact on the PR and ensure the next semver has not already been released.'
+            ].join('\n');
+
+            await upsertPrComment(github, context, core, {
+              marker: 'publish-main-error',
+              body,
+              prNumber: pr,
+            });
+
+      - name: Fail when release step failed
+        if: steps.release.outputs.skip != 'true' && steps.github_release.outcome == 'failure'
+        run: exit 1
+
+      - name: Comment on PR — stable release
+        if: steps.release.outputs.skip != 'true' && steps.github_release.outcome == 'success' && steps.release.outputs.pr_number != ''
+        uses: actions/github-script@v7
+        env:
+          VERSION: ${{ steps.release.outputs.version }}
+          VERSION_IMPACT: ${{ steps.release.outputs.impact }}
+          RELEASE_URL: ${{ steps.github_release.outputs.release_url }}
+        with:
+          script: |
+            const { upsertPrComment } = require('./.github/scripts/upsert-pr-comment.js');
+
+            const pr = Number('${{ steps.release.outputs.pr_number }}');
+            const version = process.env.VERSION;
+            const impact = process.env.VERSION_IMPACT;
+            const releaseUrl = process.env.RELEASE_URL;
+
+            const impactNote = impact === 'major'
+              ? 'This was a **major** (breaking) release.'
+              : `Version impact: \`${impact}\`.`;
+
+            const body = [
+              '### DRY RUN — Stable release',
+              '',
+              impactNote,
+              '',
+              'No package was published. In production this would publish to CodeArtifact:',
+              '',
+              `- **Version:** \`${version}\``,
+              `- **Dist-tag:** \`latest\``,
+              `- **Would install:** \`pnpm add @lifestance/protos-demo@latest\``,
+              `- **GitHub Release:** [${version}](${releaseUrl})`,
+              '',
+              '_Release notes were auto-generated from merged PRs since the previous release._'
+            ].join('\n');
+
+            await upsertPrComment(github, context, core, {
+              marker: 'publish-main',
+              body,
+              prNumber: pr,
+            });

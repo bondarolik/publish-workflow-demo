@@ -82,6 +82,9 @@ The **`version-impact`** workflow enforces this automatically.
 | `version:major-approved` | Guardian label for major only |
 | Path guardrail | Blocks `none` when proto or consumer files change |
 | `publish-main` | Computes next version from latest tag + PR impact; skips release when `none` |
+| PR comments | Bot comments use hidden markers — updated in place, not spammed |
+
+Critical validation failures post an upserted PR comment: missing/multiple version impact, major label required, invalid `none` paths, promote conflicts.
 
 ### Branch protection (manual GitHub setting)
 

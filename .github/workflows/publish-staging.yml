@@ -7,6 +7,7 @@ on:
 
 permissions:
   contents: read
+  pull-requests: write
 
 concurrency:
   group: publish-staging
@@ -21,6 +22,7 @@ jobs:
           fetch-depth: 0
 
       - name: Compute version and publish (dry run)
+        id: publish
         env:
           CHANNEL: STAGING
           DIST_TAG: staging
@@ -28,5 +30,48 @@ jobs:
           chmod +x scripts/*.sh
           VERSION="$(./scripts/compute-version.sh staging "${GITHUB_RUN_NUMBER}")"
           echo "VERSION=${VERSION}" >> "$GITHUB_ENV"
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
           export VERSION
           ./scripts/publish.sh
+
+      - name: Resolve promoted PR from commit message
+        id: promoted_pr
+        run: |
+          MSG="$(git log -1 --format=%s "${GITHUB_SHA}")"
+          if [[ "${MSG}" =~ Promote\ PR\ #([0-9]+) ]]; then
+            echo "number=${BASH_REMATCH[1]}" >> "$GITHUB_OUTPUT"
+            echo "Promoted PR #${BASH_REMATCH[1]}"
+          else
+            echo "No promoted PR in commit message — skipping PR comment."
+          fi
+
+      - name: Comment on promoted PR
+        if: steps.promoted_pr.outputs.number != ''
+        uses: actions/github-script@v7
+        env:
+          VERSION: ${{ steps.publish.outputs.version }}
+          PR_NUMBER: ${{ steps.promoted_pr.outputs.number }}
+        with:
+          script: |
+            const { upsertPrComment } = require('./.github/scripts/upsert-pr-comment.js');
+
+            const pr = Number(process.env.PR_NUMBER);
+            const version = process.env.VERSION;
+
+            const body = [
+              '### DRY RUN — Staging publish',
+              '',
+              'This PR was promoted to `staging`. No package was published. In production this would publish to CodeArtifact:',
+              '',
+              `- **Version:** \`${version}\``,
+              `- **Dist-tag:** \`staging\``,
+              `- **Would install:** \`pnpm add @lifestance/protos-demo@staging\``,
+              '',
+              '_After QA passes, squash-merge this PR to `main` for a stable release._'
+            ].join('\n');
+
+            await upsertPrComment(github, context, core, {
+              marker: 'publish-staging',
+              body,
+              prNumber: pr,
+            });

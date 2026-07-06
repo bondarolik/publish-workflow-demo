@@ -109,6 +109,8 @@ jobs:
           VERSION_IMPACT: ${{ steps.impact.outputs.impact }}
         with:
           script: |
+            const { upsertPrComment } = require('./.github/scripts/upsert-pr-comment.js');
+
             const pr = Number('${{ inputs.pr_number }}');
             const impact = process.env.VERSION_IMPACT;
             const version = process.env.VERSION;
@@ -122,14 +124,19 @@ jobs:
                 '',
                 'No pre-release package would be published for this PR.',
                 '',
+                'On merge to `main`: no git tag, GitHub Release, or stable publish.',
+                '',
                 '_No `ready-for-qa` promotion needed for docs-only changes._'
               ].join('\n');
             } else {
               const tag = `pr-${pr}`;
+              const majorNote = impact === 'major'
+                ? '**Major release** — requires `version:major-approved` before merge.\n\n'
+                : '';
               body = [
                 '### DRY RUN — PR pre-release',
                 '',
-                `**Version impact:** \`${impact}\``,
+                majorNote + `**Version impact:** \`${impact}\``,
                 '',
                 'No package was published. In production this would publish to CodeArtifact:',
                 '',
@@ -141,9 +148,8 @@ jobs:
               ].join('\n');
             }
 
-            github.rest.issues.createComment({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: pr,
-              body
+            await upsertPrComment(github, context, core, {
+              marker: 'publish-pr',
+              body,
+              prNumber: pr,
             });
