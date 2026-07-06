@@ -12,7 +12,7 @@ This document defines how stable, staging, and PR pre-release versions are chose
 
 ## Version impact (required on every PR)
 
-Each pull request targeting `main` must select exactly one value in the **Version impact** dropdown (`.github/PULL_REQUEST_TEMPLATE.yml`):
+Each pull request targeting `main` must select exactly one value in the **Version impact** dropdown (`.github/PULL_REQUEST_TEMPLATE/pull_request_template.yml`):
 
 | Selection | Semver bump | Example |
 |-----------|-------------|---------|
