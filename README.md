@@ -47,7 +47,7 @@ Every PR targeting `main` must use the PR template and check **exactly one** box
 | `major` | `X+1.0.0` | Requires `version:major-approved` label |
 | `none` | skip | Docs / `.github` / `*.md` only |
 
-**Source of truth:** latest semver git tag on `main` (not `package.json`).
+**Source of truth for bumps:** latest semver git tag on `main`. `package.json` is synced to match after each stable release.
 
 Full rules: [docs/VERSIONING_POLICY.md](docs/VERSIONING_POLICY.md).
 

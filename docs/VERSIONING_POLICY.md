@@ -123,7 +123,7 @@ On merge to `main`:
 3. Otherwise → `VERSION = bump(latest tag, impact)`.
 4. Create git tag `VERSION` and GitHub Release with auto-generated notes.
 
-`package.json` is **not** the release source of truth. It may be updated separately for documentation; tags govern automation.
+`package.json` is **synced automatically** after each stable release (bot commit with `[skip ci]`). **Git tags** remain the source of truth for version bump computation.
 
 ## Initial version
 
