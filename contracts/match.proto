@@ -6,3 +6,9 @@ message Game {
   int32 id;
   int32 team_id;
 }
+
+message GameGoal {
+  int32 id;
+  int32 score;
+  int32 team_id;
+}
