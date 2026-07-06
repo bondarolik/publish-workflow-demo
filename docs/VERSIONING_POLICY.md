@@ -125,6 +125,8 @@ On merge to `main`:
 
 `package.json` is **synced automatically** after each stable release (bot commit with `[skip ci]`). **Git tags** remain the source of truth for version bump computation.
 
+**Do not edit `package.json` manually** — especially do not add `//` comments (invalid JSON) or hand-bump `version`. CI validates strict JSON on every PR.
+
 ## Initial version
 
 If no semver tag exists yet, automation starts from **`0.0.0`**.
