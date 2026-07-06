@@ -15,4 +15,5 @@ message Player {
 
 message Empty {};
 
-// simple comment
+message Success {
+};
