@@ -138,7 +138,9 @@ Each publish job prints a banner and writes a **Job summary**:
 
 | Issue | Fix |
 |-------|-----|
-| `version-impact` fails: missing selection | Use the PR template; check exactly one box under **Version Impact** |
+| `publish-pr` fails on open | Expected until a Version Impact box is checked; re-runs on PR edit |
+| `publish-pr` still red after checking a box | Push the latest workflow fix (`edited` trigger); re-save the PR description |
+| `version-impact` fails: missing selection | Check exactly one box under **Version Impact** |
 | `version-impact` fails: multiple selections | Uncheck extras — only one of patch / minor / major / none |
 | `version-impact` fails: major | Git guardian adds `version:major-approved` |
 | `version-impact` fails: none + proto file | Change impact to patch/minor/major, or restrict PR to allowlisted paths |

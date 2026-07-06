@@ -3,7 +3,7 @@ name: Publish PR pre-release (dry run)
 on:
   pull_request:
     branches: [main]
-    types: [opened, synchronize, reopened]
+    types: [opened, synchronize, reopened, edited]
   workflow_dispatch:
     inputs:
       pr_number:
@@ -46,26 +46,40 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
 
+      - name: Write PR body
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            fs.writeFileSync('/tmp/pr-body.md', context.payload.pull_request.body || '');
+
       - name: Resolve version impact
         id: impact
         env:
-          PR_BODY: ${{ github.event.pull_request.body }}
           MANUAL_IMPACT: ${{ inputs.version_impact }}
         run: |
           chmod +x scripts/*.sh
 
           if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
             IMPACT="${MANUAL_IMPACT}"
+            echo "ready=true" >> "$GITHUB_OUTPUT"
           else
-            printf '%s' "${PR_BODY}" > /tmp/pr-body.md
-            IMPACT="$(./scripts/parse-version-impact.sh /tmp/pr-body.md)"
+            if IMPACT="$(./scripts/parse-version-impact.sh /tmp/pr-body.md 2>/dev/null)"; then
+              echo "ready=true" >> "$GITHUB_OUTPUT"
+            else
+              echo "Version impact not selected yet — check exactly one box under ## Version Impact."
+              echo "ready=false" >> "$GITHUB_OUTPUT"
+              echo "impact=pending" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
           fi
 
           echo "impact=${IMPACT}" >> "$GITHUB_OUTPUT"
           echo "Version impact: ${IMPACT}"
 
       - name: Compute version and publish (dry run)
-        if: steps.impact.outputs.impact != 'none'
+        if: steps.impact.outputs.ready == 'true' && steps.impact.outputs.impact != 'none'
         env:
           PR_NUMBER: ${{ steps.pr.outputs.number }}
           CHANNEL: PR
@@ -78,7 +92,7 @@ jobs:
           ./scripts/publish.sh
 
       - name: Comment on PR
-        if: github.event_name == 'pull_request'
+        if: github.event_name == 'pull_request' && steps.impact.outputs.ready == 'true'
         uses: actions/github-script@v7
         env:
           VERSION: ${{ env.VERSION }}
