@@ -57,8 +57,8 @@ Full rules: [docs/VERSIONING_POLICY.md](docs/VERSIONING_POLICY.md).
 
 | Workflow | Trigger | What it does |
 |----------|---------|--------------|
-| `version-impact.yml` | PR opened/updated → `main` | Required check — validates version impact + `none` paths + major label |
-| `publish-pr.yml` | PR opened/updated → `main` | Logs preview version + PR comment with `@pr-{N}` |
+| `version-impact.yml` | PR opened/updated → `main` | Required check — validates version impact; then chains **Publish PR pre-release** on success |
+| `publish-pr.yml` | Called by `version-impact` (or manual dispatch) | Logs preview version + PR comment with `@pr-{N}` |
 | `promote-to-staging.yml` | Label `ready-for-qa` or manual | Squash-merge PR into `staging` |
 | `publish-staging.yml` | Push to `staging` | Logs `@staging` version |
 | `publish-main.yml` | Push to `main` | Logs stable `@latest` (dry run) + creates GitHub Release (skipped when impact is `none`) |
@@ -138,8 +138,8 @@ Each publish job prints a banner and writes a **Job summary**:
 
 | Issue | Fix |
 |-------|-----|
-| `publish-pr` fails on open | Expected until a Version Impact box is checked; re-runs on PR edit |
-| `publish-pr` still red after checking a box | Push the latest workflow fix (`edited` trigger); re-save the PR description |
+| `publish-pr` not running | Runs only after **`version-impact`** succeeds; label-only events skip publish |
+| `publish-pr` fails | `version-impact` passed but PR body could not be parsed — check exactly one **Version Impact** box |
 | `version-impact` fails: missing selection | Check exactly one box under **Version Impact** |
 | `version-impact` fails: multiple selections | Uncheck extras — only one of patch / minor / major / none |
 | `version-impact` fails: major | Git guardian adds `version:major-approved` |

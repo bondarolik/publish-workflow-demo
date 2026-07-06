@@ -1,9 +1,14 @@
 name: Publish PR pre-release (dry run)
 
 on:
-  pull_request:
-    branches: [main]
-    types: [opened, synchronize, reopened, edited]
+  workflow_call:
+    inputs:
+      pr_number:
+        required: true
+        type: string
+      head_sha:
+        required: true
+        type: string
   workflow_dispatch:
     inputs:
       pr_number:
@@ -25,53 +30,59 @@ permissions:
   pull-requests: write
 
 concurrency:
-  group: publish-pr-${{ github.event.pull_request.number || inputs.pr_number }}
+  group: publish-pr-${{ inputs.pr_number }}
   cancel-in-progress: true
 
 jobs:
   publish:
     runs-on: ubuntu-latest
     steps:
-      - name: Resolve PR metadata
+      - name: Record PR number
         id: pr
+        run: echo "number=${{ inputs.pr_number }}" >> "$GITHUB_OUTPUT"
+
+      - name: Resolve head SHA (manual dispatch)
+        id: head
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
-            echo "number=${{ inputs.pr_number }}" >> "$GITHUB_OUTPUT"
-          else
-            echo "number=${{ github.event.pull_request.number }}" >> "$GITHUB_OUTPUT"
-          fi
+          SHA="$(gh pr view "${{ inputs.pr_number }}" --json headRefOid -q .headRefOid)"
+          echo "sha=${SHA}" >> "$GITHUB_OUTPUT"
 
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          ref: ${{ inputs.head_sha || steps.head.outputs.sha }}
           fetch-depth: 0
 
       - name: Write PR body
-        if: github.event_name == 'pull_request'
+        if: github.event_name != 'workflow_dispatch'
         uses: actions/github-script@v7
         with:
           script: |
             const fs = require('fs');
-            fs.writeFileSync('/tmp/pr-body.md', context.payload.pull_request.body || '');
+            const pr = Number('${{ inputs.pr_number }}');
+            const { data } = await github.rest.pulls.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: pr,
+            });
+            fs.writeFileSync('/tmp/pr-body.md', data.body || '');
 
       - name: Resolve version impact
         id: impact
         env:
           MANUAL_IMPACT: ${{ inputs.version_impact }}
         run: |
+          set -euo pipefail
           chmod +x scripts/*.sh
 
           if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
             IMPACT="${MANUAL_IMPACT}"
-            echo "ready=true" >> "$GITHUB_OUTPUT"
           else
-            if IMPACT="$(./scripts/parse-version-impact.sh /tmp/pr-body.md 2>/dev/null)"; then
-              echo "ready=true" >> "$GITHUB_OUTPUT"
-            else
-              echo "Version impact not selected yet — check exactly one box under ## Version Impact."
-              echo "ready=false" >> "$GITHUB_OUTPUT"
-              echo "impact=pending" >> "$GITHUB_OUTPUT"
-              exit 0
+            if ! IMPACT="$(./scripts/parse-version-impact.sh /tmp/pr-body.md)"; then
+              echo "::error::Version impact is missing or invalid in PR body. Check exactly one box under ## Version Impact."
+              exit 1
             fi
           fi
 
@@ -79,7 +90,7 @@ jobs:
           echo "Version impact: ${IMPACT}"
 
       - name: Compute version and publish (dry run)
-        if: steps.impact.outputs.ready == 'true' && steps.impact.outputs.impact != 'none'
+        if: steps.impact.outputs.impact != 'none'
         env:
           PR_NUMBER: ${{ steps.pr.outputs.number }}
           CHANNEL: PR
@@ -92,14 +103,13 @@ jobs:
           ./scripts/publish.sh
 
       - name: Comment on PR
-        if: github.event_name == 'pull_request' && steps.impact.outputs.ready == 'true'
         uses: actions/github-script@v7
         env:
           VERSION: ${{ env.VERSION }}
           VERSION_IMPACT: ${{ steps.impact.outputs.impact }}
         with:
           script: |
-            const pr = context.payload.pull_request.number;
+            const pr = Number('${{ inputs.pr_number }}');
             const impact = process.env.VERSION_IMPACT;
             const version = process.env.VERSION;
 

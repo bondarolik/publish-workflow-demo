@@ -78,6 +78,7 @@ The **`version-impact`** workflow enforces this automatically.
 |-------|-----------|
 | PR template | Required markdown checklist — exactly one Version Impact box checked |
 | `version-impact` workflow | Required status check before merge |
+| `publish-pr` workflow | Runs **after** `version-impact` succeeds (same workflow run, second job) |
 | `version:major-approved` | Guardian label for major only |
 | Path guardrail | Blocks `none` when proto or consumer files change |
 | `publish-main` | Computes next version from latest tag + PR impact; skips release when `none` |
@@ -138,7 +139,7 @@ For the first production release, the team may manually tag `1.0.0` on `main` or
 | Workflow | Role |
 |----------|------|
 | `version-impact.yml` | Validates PR version declaration |
-| `publish-pr.yml` | PR pre-release dry run + PR comment |
+| `publish-pr.yml` | PR pre-release dry run + PR comment (chained after `version-impact` passes) |
 | `promote-to-staging.yml` | Promotes PR to `staging` |
 | `publish-staging.yml` | Staging channel dry run |
 | `publish-main.yml` | Stable release + GitHub Release |
