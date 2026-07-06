@@ -50,7 +50,15 @@ if [[ -z "${BODY_FILE}" || ! -f "${BODY_FILE}" ]]; then
 fi
 
 if ! IMPACT="$(parse_version_impact_from_file "${BODY_FILE}")"; then
-  echo "::error::Version impact is required. Select patch, minor, major, or none in the PR template dropdown."
+  if grep -qE '^## Version Impact[[:space:]]*$' "${BODY_FILE}"; then
+    if grep -qE '^- \[[xX]\]' "${BODY_FILE}"; then
+      echo "::error::Check exactly one option under ## Version Impact (patch, minor, major, or none)."
+    else
+      echo "::error::Select a version impact under ## Version Impact — check exactly one box."
+    fi
+  else
+    echo "::error::Version impact is required. Use the PR template and check exactly one box under ## Version Impact."
+  fi
   exit 1
 fi
 

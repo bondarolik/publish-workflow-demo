@@ -38,7 +38,7 @@ git push -u origin main
 
 ## Versioning (summary)
 
-Every PR targeting `main` must select **Version impact** in the PR template dropdown:
+Every PR targeting `main` must use the PR template and check **exactly one** box under **Version Impact**:
 
 | Impact | Bump | Notes |
 |--------|------|-------|
@@ -74,7 +74,7 @@ Every workflow supports **Run workflow** for manual demo triggers.
 
 1. `git checkout -b CM-123-add-rpc`
 2. Edit `contracts/demo.proto`
-3. Open PR → `main` — select **minor** in Version impact dropdown
+3. Open PR → `main` — check **minor** under Version Impact
 4. Show **`version-impact`** check passing
 5. Show **Publish PR pre-release** in Actions:
    - Job log banner: `DRY RUN — would publish … @pr-{N}`
@@ -99,13 +99,13 @@ Every workflow supports **Run workflow** for manual demo triggers.
 ### Scene 4 — Docs-only (none)
 
 1. Open PR that only changes `README.md` or `.github/**`
-2. Select **none** in Version impact
+2. Select **none** under Version Impact
 3. Show **`version-impact`** passes; **Publish PR** comments that pre-release is skipped
 4. Merge → **Publish stable release** skips tag and release
 
 ### Scene 5 — Major (optional)
 
-1. Open PR with breaking proto change; select **major**
+1. Open PR with breaking proto change; check **major** under Version Impact
 2. Show **`version-impact`** fails until guardian adds **`version:major-approved`**
 3. After label + merge → tag `2.0.0`
 
@@ -138,7 +138,8 @@ Each publish job prints a banner and writes a **Job summary**:
 
 | Issue | Fix |
 |-------|-----|
-| `version-impact` fails: missing dropdown | Fill **Version impact** in the PR template |
+| `version-impact` fails: missing selection | Use the PR template; check exactly one box under **Version Impact** |
+| `version-impact` fails: multiple selections | Uncheck extras — only one of patch / minor / major / none |
 | `version-impact` fails: major | Git guardian adds `version:major-approved` |
 | `version-impact` fails: none + proto file | Change impact to patch/minor/major, or restrict PR to allowlisted paths |
 | No PR comment | Check workflow has `pull-requests: write` |

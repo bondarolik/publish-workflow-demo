@@ -42,6 +42,37 @@ bump_semver() {
 parse_version_impact_from_file() {
   local body_file="${1:?body file required}"
 
+  if grep -qE '^## Version Impact[[:space:]]*$' "${body_file}"; then
+    local impacts count
+    impacts="$(awk '
+      /^## Version Impact[[:space:]]*$/ { in_section = 1; next }
+      in_section && /^## / { in_section = 0 }
+      in_section && /^- \[[xX]\]/ {
+        line = tolower($0)
+        if (line ~ /major/) print "major"
+        else if (line ~ /minor/) print "minor"
+        else if (line ~ /patch/) print "patch"
+        else if (line ~ /none/) print "none"
+      }
+    ' "${body_file}")"
+
+    count="$(printf '%s\n' "${impacts}" | grep -c . || true)"
+
+    if [[ "${count}" -eq 1 ]]; then
+      printf '%s\n' "${impacts}"
+      return 0
+    fi
+
+    if [[ "${count}" -gt 1 ]]; then
+      echo "multiple version impact selections" >&2
+      return 1
+    fi
+
+    echo "no version impact selected" >&2
+    return 1
+  fi
+
+  # Legacy: GitHub issue-form output (### Version impact + plain value)
   local impact
   impact="$(awk '
     /^### Version impact[[:space:]]*$/ {
@@ -62,9 +93,12 @@ parse_version_impact_from_file() {
   ' "${body_file}")"
 
   case "${impact}" in
-    patch|minor|major|none) echo "${impact}" ;;
+    patch|minor|major|none)
+      echo "${impact}"
+      return 0
+      ;;
     *)
-      echo "invalid"
+      echo "invalid version impact" >&2
       return 1
       ;;
   esac

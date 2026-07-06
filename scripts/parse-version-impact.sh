@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Parse version impact from a GitHub PR body (issue form dropdown).
+# Parse version impact from a GitHub PR body (markdown checklist or legacy issue form).
 # Usage: parse-version-impact.sh <path-to-pr-body.md>
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

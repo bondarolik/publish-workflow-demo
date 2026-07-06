@@ -12,7 +12,9 @@ This document defines how stable, staging, and PR pre-release versions are chose
 
 ## Version impact (required on every PR)
 
-Each pull request targeting `main` must select exactly one value in the **Version impact** dropdown (`.github/PULL_REQUEST_TEMPLATE/pull_request_template.yml`):
+Each pull request targeting `main` must check **exactly one** box under **Version Impact** in the PR template (`.github/pull_request_template.md`).
+
+GitHub markdown does not support true radio buttons. The template uses a checkbox list; the **`version-impact`** CI check enforces that exactly one box is checked (radio behavior).
 
 | Selection | Semver bump | Example |
 |-----------|-------------|---------|
@@ -34,7 +36,7 @@ Each pull request targeting `main` must select exactly one value in the **Versio
 
 Major bumps require **both**:
 
-1. Developer selects **major** in the PR template.
+1. Developer checks **major** under Version Impact in the PR description.
 2. Git guardian adds the **`version:major-approved`** label after tech meeting agreement.
 
 The required **`version-impact`** check blocks merge until the label is present.
@@ -74,7 +76,7 @@ The **`version-impact`** workflow enforces this automatically.
 
 | Layer | Mechanism |
 |-------|-----------|
-| PR template | Required dropdown — developer declares impact |
+| PR template | Required markdown checklist — exactly one Version Impact box checked |
 | `version-impact` workflow | Required status check before merge |
 | `version:major-approved` | Guardian label for major only |
 | Path guardrail | Blocks `none` when proto or consumer files change |
