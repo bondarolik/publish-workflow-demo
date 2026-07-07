@@ -5,3 +5,8 @@ package demo;
 message Goal {
   int32 id;
 }
+
+message Empty {};
+
+message Success {
+};
