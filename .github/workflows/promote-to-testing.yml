@@ -114,7 +114,7 @@ jobs:
                 'Could not squash-merge this branch into `testing`.',
                 '',
                 '**Fix:** resolve on `testing` locally (do not merge `testing` into the PR branch).',
-                'See README — *Testing merge conflicts* and *Recreate testing* sections.'
+                'See [docs/TESTING_BRANCH.md](https://github.com/${{ github.repository }}/blob/main/docs/TESTING_BRANCH.md) — merge conflicts and recreate `testing`.'
               ].join('\n');
             } else if (result === 'already_promoted') {
               body = [
