@@ -154,15 +154,70 @@ After push:
 - **Publish staging** runs automatically → new `@staging` version
 - The open PR toward `main` is unchanged
 
-#### When to reset `staging`
-
-Run **Reset staging from main** (manual workflow) after a stable release to `main`, or when abandoning the current QA batch. This does not modify open PRs.
-
 #### Parallel PRs on staging
 
-Multiple PRs can be promoted to `staging`. The second promote may conflict if protos overlap — use the manual procedure above. For simpler operations, promote and release **one PR at a time**, then reset `staging`.
+Multiple PRs can be promoted to `staging`. The second promote may conflict if protos overlap — use the manual procedure above. For simpler operations, promote and release **one PR at a time**, then recreate `staging` (see below).
 
-### 5. Stable release — merge to main
+### 5. Recreate `staging` and re-promote WIP PRs
+
+Use this after a stable release to `main`, when abandoning the current QA batch, or when `staging` history is too messy to fix with a simple merge.
+
+**Important:** deleting and recreating `staging` wipes all integrated QA commits. Open PR branches are **not** modified. Any PR that still needs QA must be promoted onto the new `staging` again — the `ready-for-qa` label alone does **not** re-run promotion.
+
+#### Step 1 — Recreate `staging` in the GitHub branches UI
+
+Do this in the repository on GitHub (**Code → branches**), not by merging `staging` into PRs.
+
+1. Open **Branches** (or **Code** → branch dropdown → **View all branches**).
+2. Find **`staging`** → **Delete branch** (confirm).
+3. Create a new branch:
+   - Name: `staging`
+   - Source: **`main`** (latest)
+4. Push/create the branch so `origin/staging` exists and matches `main`.
+
+A push to the new `staging` triggers **Publish staging** → `@staging` reflects the current `main` baseline until WIP PRs are re-promoted.
+
+> The **Reset staging from main** workflow is an alternative git reset of the existing branch. For this documented procedure, prefer **delete + recreate from `main`** in the GitHub UI.
+
+#### Step 2 — Identify WIP PRs still in QA
+
+In GitHub, filter open PRs targeting `main` with label **`ready-for-qa`**.
+
+These are the PRs that should go back onto `staging`. There are usually only a few on the real protos package — re-promote them **one at a time** in a sensible order (e.g. oldest first, or by team agreement).
+
+The `ready-for-qa` label does not need to be removed and re-added if you promote manually (step 3). Optionally re-add the label later if you want the bot to retry for a single PR.
+
+#### Step 3 — Manually promote each WIP PR onto `staging` (local)
+
+**Never merge `staging` into the PR branch.** Repeat the following for each open PR that still needs QA, without changing the PR branch itself.
+
+Replace `42`, `CM-123-add-match-rpc`, and the title with the real PR number, branch name, and title.
+
+```bash
+git fetch origin staging CM-123-add-match-rpc
+git checkout staging
+git pull origin staging
+
+git merge --squash origin/CM-123-add-match-rpc
+
+# If conflicts: resolve in contracts/*.proto ON STAGING only
+git add .
+git commit -m "Promote PR #42 to staging: Add Match RPC (CM-123)"
+git push origin staging
+```
+
+After each push:
+
+- **Publish staging** runs → new `{tag}-staging.{run}` / `@staging`
+- Use the `Promote PR #N to staging: …` commit message so the workflow can comment on the correct PR
+
+If the next WIP PR conflicts with what is already on `staging`, resolve on **`staging`** again — do not update the PR branch to absorb `staging`.
+
+#### Step 4 — Continue normal flow
+
+When QA passes for a PR, squash-merge that PR to `main` (section 6). After all relevant releases, recreate `staging` from `main` again to start the next QA cycle.
+
+### 6. Stable release — merge to main
 
 After QA passes, **squash-merge the PR to `main`** (PR branch unchanged up to this point).
 
@@ -178,9 +233,9 @@ On merge:
 | `patch` / `minor` / `major` | Tag + release + `@latest` dry-run log |
 | `none` | No tag, no release, no publish |
 
-Then run **Reset staging from main** so the next QA cycle starts from the released baseline.
+Then **recreate `staging` from `main`** in the GitHub branches UI and re-promote any remaining WIP PRs (section 5).
 
-### 6. Docs-only PRs (`none`)
+### 7. Docs-only PRs (`none`)
 
 1. Change only allowlisted paths (`*.md`, `docs/**`, `.github/**`, etc.)
 2. Check **none** under Version Impact
@@ -197,7 +252,7 @@ ready-for-qa → staging (@staging)     ← conflicts fixed on staging, not PR
     ↓
 QA pass → squash-merge PR → main (@latest + GitHub Release)
     ↓
-reset staging from main
+delete + recreate staging from main (GitHub UI) → re-promote WIP PRs locally (one by one)
 ```
 
 ---
@@ -234,7 +289,8 @@ Each publish job prints a banner and writes a **Job summary**:
 | Promote failed / conflict | Resolve on **`staging`** locally — see [Staging merge conflicts](#4-staging-merge-conflicts-pr-stays-as-is). Do **not** merge `staging` into the PR. |
 | Promote does nothing | Label must be exactly `ready-for-qa`; PR must target `main` |
 | Release failed: tag exists | A release with that version already exists — check latest tag |
-| Staging out of date | Run **Reset staging from main** |
+| Staging out of date / after release | Recreate `staging` from `main` in GitHub branches UI — see [Recreate staging](#5-recreate-staging-and-re-promote-wip-prs) |
+| `ready-for-qa` but not on staging after recreate | Re-promote manually onto `staging` (label does not auto-retrigger) |
 
 ---
 
