@@ -1,4 +1,4 @@
-name: Promote to staging
+name: Promote to testing
 
 on:
   pull_request:
@@ -15,7 +15,7 @@ permissions:
   pull-requests: write
 
 concurrency:
-  group: promote-staging
+  group: promote-testing
   cancel-in-progress: false
 
 jobs:
@@ -39,7 +39,7 @@ jobs:
           ref: main
           fetch-depth: 0
 
-      - name: Fetch PR head and squash-merge into staging
+      - name: Fetch PR head and squash-merge into testing
         id: promote
         continue-on-error: true
         env:
@@ -60,11 +60,11 @@ jobs:
           PR_TITLE="$(echo "${PR_JSON}" | jq -r '.title')"
 
           git fetch origin "${HEAD_REF}"
-          if git ls-remote --exit-code --heads origin staging; then
-            git fetch origin staging
-            git checkout staging
+          if git ls-remote --exit-code --heads origin testing; then
+            git fetch origin testing
+            git checkout testing
           else
-            git checkout -b staging origin/main
+            git checkout -b testing origin/main
           fi
 
           if ! git merge --squash "origin/${HEAD_REF}"; then
@@ -74,14 +74,14 @@ jobs:
 
           if git diff --cached --quiet; then
             echo "result=already_promoted" >> "$GITHUB_OUTPUT"
-            echo "Nothing to promote — staging already contains this change."
+            echo "Nothing to promote — testing already contains this change."
             exit 0
           fi
 
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git commit -m "Promote PR #${PR_NUMBER} to staging: ${PR_TITLE}"
-          git push origin staging
+          git commit -m "Promote PR #${PR_NUMBER} to testing: ${PR_TITLE}"
+          git push origin testing
           echo "result=promoted" >> "$GITHUB_OUTPUT"
 
       - name: Comment on PR
@@ -101,7 +101,7 @@ jobs:
 
             if (result === 'pr_not_open') {
               body = [
-                '### Promote to staging — failed',
+                '### Promote to testing — failed',
                 '',
                 '**Reason:** this PR is not open.',
                 '',
@@ -109,28 +109,26 @@ jobs:
               ].join('\n');
             } else if (result === 'merge_conflict') {
               body = [
-                '### Promote to staging — merge conflict',
+                '### Promote to testing — merge conflict',
                 '',
-                'Could not squash-merge this branch into `staging`.',
+                'Could not squash-merge this branch into `testing`.',
                 '',
-                '**Fix:**',
-                '1. Rebase or merge `staging` into this branch',
-                '2. Resolve conflicts and push',
-                '3. Re-add label `ready-for-qa`'
+                '**Fix:** resolve on `testing` locally (do not merge `testing` into the PR branch).',
+                'See README — *Testing merge conflicts* and *Recreate testing* sections.'
               ].join('\n');
             } else if (result === 'already_promoted') {
               body = [
-                '### Promote to staging — already up to date',
+                '### Promote to testing — already up to date',
                 '',
-                '`staging` already contains this change. No new promote commit was created.',
+                '`testing` already contains this change. No new promote commit was created.',
                 '',
-                '_Staging publish will not re-run unless a new commit lands on `staging`._'
+                '_Testing publish will not re-run unless a new commit lands on `testing`._'
               ].join('\n');
             } else if ('${{ steps.promote.outcome }}' === 'failure') {
               body = [
-                '### Promote to staging — failed',
+                '### Promote to testing — failed',
                 '',
-                'Promotion to `staging` failed. Check the **Promote to staging** workflow logs for details.'
+                'Promotion to `testing` failed. Check the **Promote to testing** workflow logs for details.'
               ].join('\n');
             }
 
@@ -140,7 +138,7 @@ jobs:
             }
 
             await upsertPrComment(github, context, core, {
-              marker: 'promote-staging',
+              marker: 'promote-testing',
               body,
               prNumber: pr,
             });
@@ -158,12 +156,12 @@ jobs:
           script: |
             const { deleteMarkedComment } = require('./.github/scripts/upsert-pr-comment.js');
             await deleteMarkedComment(github, context, core, {
-              marker: 'promote-staging',
+              marker: 'promote-testing',
               prNumber: Number(process.env.PR_NUMBER),
             });
 
       - name: Summary
         if: steps.promote.outputs.result == 'promoted'
         run: |
-          echo "Promoted PR #${{ steps.pr.outputs.number }} to staging."
-          echo "publish-staging workflow will log @staging publish on push."
+          echo "Promoted PR #${{ steps.pr.outputs.number }} to testing."
+          echo "publish-testing workflow will log @testing publish on push."

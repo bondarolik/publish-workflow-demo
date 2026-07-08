@@ -126,6 +126,8 @@ jobs:
           VERSION: ${{ steps.release.outputs.version }}
         run: |
           export VERSION
+          # DRY RUN — DevOps: replace ./scripts/publish.sh with CodeArtifact publish
+          # (e.g. ./scripts/publish-codeartifact.sh) in cm_protos production.
           ./scripts/publish.sh
 
       - name: Create GitHub Release

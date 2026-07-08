@@ -1,6 +1,6 @@
 # Versioning policy
 
-This document defines how stable, staging, and PR pre-release versions are chosen in the **publish-workflow-demo** repository and the production `@lifestance/protos` model it proves.
+This document defines how stable, testing, and PR pre-release versions are chosen in the **publish-workflow-demo** repository and the production `@lifestance/protos` model it proves.
 
 ## Principles
 
@@ -99,7 +99,7 @@ Latest stable tag = `T`. Version impact on the PR = `I`. Next stable = `bump(T, 
 | Channel | Trigger | Version format | Dist-tag |
 |---------|---------|----------------|----------|
 | PR | PR updated → `main` | `{bump(T, I)}-pr.{N}.{run}` | `@pr-{N}` |
-| Staging | Push to `staging` | `{T}-staging.{run}` | `@staging` |
+| Testing | Push to `testing` | `{T}-testing.{run}` | `@testing` |
 | Stable | Merge to `main` | `bump(T, I)` | `@latest` |
 
 ### PR preview version
@@ -110,9 +110,9 @@ Example: latest tag `1.2.0`, PR selects `minor` → PR package version `1.3.0-pr
 
 When impact is `none`, the PR publish workflow is skipped and the PR comment explains why.
 
-### Staging version
+### Testing version
 
-Staging uses the **current latest tag** as base (no semver bump on the staging channel). Example: `1.2.0-staging.5`.
+Testing uses the **current latest tag** as base (no semver bump on the testing channel). Example: `1.2.0-testing.5`.
 
 ### Stable release
 
@@ -145,15 +145,15 @@ For the first production release, the team may manually tag `1.0.0` on `main` or
 |----------|------|
 | `version-impact.yml` | Validates PR version declaration |
 | `publish-pr.yml` | PR pre-release dry run + PR comment (chained after `version-impact` passes) |
-| `promote-to-staging.yml` | Promotes PR to `staging` |
-| `publish-staging.yml` | Staging channel dry run |
+| `promote-to-testing.yml` | Promotes PR to `testing` |
+| `publish-testing.yml` | Testing channel dry run |
 | `publish-main.yml` | Stable release + GitHub Release |
-| `reset-staging.yml` | Reset `staging` to `main` |
+| `reset-testing.yml` | Reset `testing` to `main` |
 
 ## Adoption in `cm_protos`
 
 After this demo is approved:
 
 1. Copy workflows and scripts into `cm_protos`.
-2. Replace `scripts/publish.sh` dry-run logging with real CodeArtifact publish in production.
+2. Implement `scripts/publish-codeartifact.sh` and call it from publish workflows instead of `scripts/publish.sh` dry-run.
 3. Keep this policy document as the team reference.

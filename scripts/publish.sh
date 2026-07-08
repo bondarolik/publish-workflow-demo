@@ -3,6 +3,9 @@ set -euo pipefail
 
 # Logs what would be published in production (no registry calls).
 # Required env: VERSION, DIST_TAG, CHANNEL
+#
+# Production (CodeArtifact): DevOps replaces this dry-run block with
+# ./scripts/publish-codeartifact.sh — see that file for the integration contract.
 
 : "${VERSION:?VERSION is required}"
 : "${DIST_TAG:?DIST_TAG is required}"
@@ -10,6 +13,7 @@ set -euo pipefail
 
 PACKAGE_NAME="${PACKAGE_NAME:-@lifestance/protos-demo}"
 
+# --- DRY RUN (demo) — remove or bypass when wiring CodeArtifact ---------------
 BANNER=$(cat <<EOF
 ╔══════════════════════════════════════════════════════════════╗
 ║  DRY RUN — no package published                              ║
@@ -39,3 +43,4 @@ if [[ -n "${GITHUB_STEP_SUMMARY:-}" ]]; then
     echo "| Would install | \`pnpm add ${PACKAGE_NAME}@${DIST_TAG}\` |"
   } >> "${GITHUB_STEP_SUMMARY}"
 fi
+# --- end DRY RUN — production: ./scripts/publish-codeartifact.sh ---------------

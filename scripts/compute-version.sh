@@ -7,7 +7,7 @@ set -euo pipefail
 #   compute-version.sh latest
 #   compute-version.sh bump <patch|minor|major>
 #   compute-version.sh pr <impact> <pr_number> <run_number>
-#   compute-version.sh staging <run_number>
+#   compute-version.sh testing <run_number>
 #   compute-version.sh stable <impact>
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -33,10 +33,10 @@ case "${COMMAND}" in
     NEXT="$(bump_semver "${BASE}" "${IMPACT}")"
     echo "${NEXT}-pr.${PR_NUMBER}.${RUN_NUMBER}"
     ;;
-  staging)
+  testing)
     RUN_NUMBER="${2:?run number required}"
     BASE="$(get_latest_version)"
-    echo "${BASE}-staging.${RUN_NUMBER}"
+    echo "${BASE}-testing.${RUN_NUMBER}"
     ;;
   stable)
     IMPACT="${2:?impact required}"
@@ -45,7 +45,7 @@ case "${COMMAND}" in
     ;;
   *)
     echo "Unknown command: ${COMMAND}" >&2
-    echo "Usage: compute-version.sh latest|bump|pr|staging|stable" >&2
+    echo "Usage: compute-version.sh latest|bump|pr|testing|stable" >&2
     exit 1
     ;;
 esac

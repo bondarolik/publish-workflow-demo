@@ -1,4 +1,4 @@
-name: Reset staging from main
+name: Reset testing from main
 
 on:
   workflow_dispatch:
@@ -14,15 +14,15 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Reset staging to main
+      - name: Reset testing to main
         run: |
           set -euo pipefail
           git fetch origin main
-          if git ls-remote --exit-code --heads origin staging; then
-            git checkout staging
+          if git ls-remote --exit-code --heads origin testing; then
+            git checkout testing
             git reset --hard origin/main
           else
-            git checkout -B staging origin/main
+            git checkout -B testing origin/main
           fi
-          git push origin staging --force-with-lease
-          echo "staging now matches main."
+          git push origin testing --force-with-lease
+          echo "testing now matches main."

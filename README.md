@@ -2,14 +2,14 @@
 
 Proof-of-concept repo for the approved `@lifestance/protos` collaboration model.
 
-**No packages are published.** Workflows log what *would* happen on CodeArtifact and perform real git operations (PR comments, promote to `staging`, GitHub Releases on `main`).
+**No packages are published.** Workflows log what *would* happen on CodeArtifact and perform real git operations (PR comments, promote to `testing`, GitHub Releases on `main`).
 
 **Versioning policy:** see [docs/VERSIONING_POLICY.md](docs/VERSIONING_POLICY.md).
 
 | Channel | Trigger | Would publish | Dist-tag |
 |---------|---------|---------------|----------|
 | PR / dev | PR push to `main` | `{next}-pr.{N}.{run}` (preview from PR version impact) | `@pr-{N}` |
-| QA | Label `ready-for-qa` → merge to `staging` | `{latest}-staging.{run}` | `@staging` |
+| QA | Label `ready-for-qa` → merge to `testing` | `{latest}-testing.{run}` | `@testing` |
 | Stable | Merge to `main` | `bump(latest tag, version impact)` | `@latest` |
 | Docs / CI | Merge to `main` with impact `none` | skipped | — |
 
@@ -27,7 +27,7 @@ git push -u origin main
 ```
 
 1. Create labels in **Settings → Labels**:
-   - **`ready-for-qa`** — promotes PR to staging
+   - **`ready-for-qa`** — promotes PR to testing
    - **`version:major-approved`** — git guardian approval for major bumps (see policy doc)
 2. Enable **Settings → Actions → General → Workflow permissions: Read and write** (needed for promote, PR comments, and releases).
 3. Enable branch protection on `main`:
@@ -59,10 +59,10 @@ Full rules: [docs/VERSIONING_POLICY.md](docs/VERSIONING_POLICY.md).
 |----------|---------|--------------|
 | `version-impact.yml` | PR opened/updated → `main` | Required check — validates version impact; then chains **Publish PR pre-release** on success |
 | `publish-pr.yml` | Called by `version-impact` (or manual dispatch) | Logs preview version + PR comment with `@pr-{N}` |
-| `promote-to-staging.yml` | Label `ready-for-qa` or manual | Squash-merge PR into `staging` |
-| `publish-staging.yml` | Push to `staging` | Logs `@staging` version + comments on the promoted PR |
+| `promote-to-testing.yml` | Label `ready-for-qa` or manual | Squash-merge PR into `testing` |
+| `publish-testing.yml` | Push to `testing` | Logs `@testing` version + comments on the promoted PR |
 | `publish-main.yml` | Push to `main` | Logs stable `@latest` (dry run) + creates GitHub Release (skipped when impact is `none`) |
-| `reset-staging.yml` | Manual | Resets `staging` to match `main` |
+| `reset-testing.yml` | Manual | Resets `testing` to match `main` |
 
 Every workflow supports **Run workflow** for manual demo triggers.
 
@@ -70,7 +70,7 @@ Every workflow supports **Run workflow** for manual demo triggers.
 
 ## How to open and ship a PR
 
-End-to-end flow for a proto change targeting `main`. The PR branch stays the canonical proposal for `main` — integration happens on `staging` only.
+End-to-end flow for a proto change targeting `main`. The PR branch stays the canonical proposal for `main` — integration happens on `testing` only.
 
 ### 1. Create the branch and change
 
@@ -109,113 +109,113 @@ If **major** is selected:
 3. `version-impact` passes → pre-release preview updates
 4. Merge only when green
 
-### 3. QA — promote to staging
+### 3. QA — promote to testing
 
 When the PR is ready for QA, add label **`ready-for-qa`**.
 
-This triggers **Promote to staging** (squash-merge of the PR branch into `staging`). On success:
+This triggers **Promote to testing** (squash-merge of the PR branch into `testing`). On success:
 
-- A new commit lands on `staging`
-- **Publish staging** runs → logs `{tag}-staging.{run}` / `@staging`
-- A PR comment documents the staging version
+- A new commit lands on `testing`
+- **Publish testing** runs → logs `{tag}-testing.{run}` / `@testing`
+- A PR comment documents the testing version
 
-QA consumers install: `pnpm add @lifestance/protos-demo@staging`
+QA consumers install: `pnpm add @lifestance/protos-demo@testing`
 
-### 4. Staging merge conflicts (PR stays as-is)
+### 4. Testing merge conflicts (PR stays as-is)
 
-**Never merge `staging` into the PR branch.** The PR must remain a clean proposal for `main`.
+**Never merge `testing` into the PR branch.** The PR must remain a clean proposal for `main`.
 
-Conflicts are resolved **on `staging` only** — either by the bot or manually when automated promote fails.
+Conflicts are resolved **on `testing` only** — either by the bot or manually when automated promote fails.
 
 #### When automated promote fails
 
-The PR may show a **Promote to staging — merge conflict** comment. The PR branch does not need to change.
+The PR may show a **Promote to testing — merge conflict** comment. The PR branch does not need to change.
 
-**Recommended procedure (git guardian or developer with push access to `staging`):**
+**Recommended procedure (git guardian or developer with push access to `testing`):**
 
 ```bash
-git fetch origin staging CM-123-add-match-rpc
-git checkout staging
-git pull origin staging
+git fetch origin testing CM-123-add-match-rpc
+git checkout testing
+git pull origin testing
 
-# bring PR changes into staging (same intent as the bot)
+# bring PR changes into testing (same intent as the bot)
 git merge --squash origin/CM-123-add-match-rpc
 
-# resolve conflicts in contracts/*.proto ON STAGING — not on the PR branch
+# resolve conflicts in contracts/*.proto ON TESTING — not on the PR branch
 git add .
-git commit -m "Promote PR #42 to staging: Add Match RPC (CM-123)"
-git push origin staging
+git commit -m "Promote PR #42 to testing: Add Match RPC (CM-123)"
+git push origin testing
 ```
 
-Use the real PR number and title in the commit message so **Publish staging** can comment on the PR.
+Use the real PR number and title in the commit message so **Publish testing** can comment on the PR.
 
 After push:
 
-- **Publish staging** runs automatically → new `@staging` version
+- **Publish testing** runs automatically → new `@testing` version
 - The open PR toward `main` is unchanged
 
-#### Parallel PRs on staging
+#### Parallel PRs on testing
 
-Multiple PRs can be promoted to `staging`. The second promote may conflict if protos overlap — use the manual procedure above. For simpler operations, promote and release **one PR at a time**, then recreate `staging` (see below).
+Multiple PRs can be promoted to `testing`. The second promote may conflict if protos overlap — use the manual procedure above. For simpler operations, promote and release **one PR at a time**, then recreate `testing` (see below).
 
-### 5. Recreate `staging` and re-promote WIP PRs
+### 5. Recreate `testing` and re-promote WIP PRs
 
-Use this after a stable release to `main`, when abandoning the current QA batch, or when `staging` history is too messy to fix with a simple merge.
+Use this after a stable release to `main`, when abandoning the current QA batch, or when `testing` history is too messy to fix with a simple merge.
 
-**Important:** deleting and recreating `staging` wipes all integrated QA commits. Open PR branches are **not** modified. Any PR that still needs QA must be promoted onto the new `staging` again — the `ready-for-qa` label alone does **not** re-run promotion.
+**Important:** deleting and recreating `testing` wipes all integrated QA commits. Open PR branches are **not** modified. Any PR that still needs QA must be promoted onto the new `testing` again — the `ready-for-qa` label alone does **not** re-run promotion.
 
-#### Step 1 — Recreate `staging` in the GitHub branches UI
+#### Step 1 — Recreate `testing` in the GitHub branches UI
 
-Do this in the repository on GitHub (**Code → branches**), not by merging `staging` into PRs.
+Do this in the repository on GitHub (**Code → branches**), not by merging `testing` into PRs.
 
 1. Open **Branches** (or **Code** → branch dropdown → **View all branches**).
-2. Find **`staging`** → **Delete branch** (confirm).
+2. Find **`testing`** → **Delete branch** (confirm).
 3. Create a new branch:
-   - Name: `staging`
+   - Name: `testing`
    - Source: **`main`** (latest)
-4. Push/create the branch so `origin/staging` exists and matches `main`.
+4. Push/create the branch so `origin/testing` exists and matches `main`.
 
-A push to the new `staging` triggers **Publish staging** → `@staging` reflects the current `main` baseline until WIP PRs are re-promoted.
+A push to the new `testing` triggers **Publish testing** → `@testing` reflects the current `main` baseline until WIP PRs are re-promoted.
 
-> The **Reset staging from main** workflow is an alternative git reset of the existing branch. For this documented procedure, prefer **delete + recreate from `main`** in the GitHub UI.
+> The **Reset testing from main** workflow is an alternative git reset of the existing branch. For this documented procedure, prefer **delete + recreate from `main`** in the GitHub UI.
 
 #### Step 2 — Identify WIP PRs still in QA
 
 In GitHub, filter open PRs targeting `main` with label **`ready-for-qa`**.
 
-These are the PRs that should go back onto `staging`. There are usually only a few on the real protos package — re-promote them **one at a time** in a sensible order (e.g. oldest first, or by team agreement).
+These are the PRs that should go back onto `testing`. There are usually only a few on the real protos package — re-promote them **one at a time** in a sensible order (e.g. oldest first, or by team agreement).
 
 The `ready-for-qa` label does not need to be removed and re-added if you promote manually (step 3). Optionally re-add the label later if you want the bot to retry for a single PR.
 
-#### Step 3 — Manually promote each WIP PR onto `staging` (local)
+#### Step 3 — Manually promote each WIP PR onto `testing` (local)
 
-**Never merge `staging` into the PR branch.** Repeat the following for each open PR that still needs QA, without changing the PR branch itself.
+**Never merge `testing` into the PR branch.** Repeat the following for each open PR that still needs QA, without changing the PR branch itself.
 
 Replace `42`, `CM-123-add-match-rpc`, and the title with the real PR number, branch name, and title.
 
 ```bash
-git fetch origin staging CM-123-add-match-rpc
-git checkout staging
-git pull origin staging
+git fetch origin testing CM-123-add-match-rpc
+git checkout testing
+git pull origin testing
 
 git merge --squash origin/CM-123-add-match-rpc
 
-# If conflicts: resolve in contracts/*.proto ON STAGING only
+# If conflicts: resolve in contracts/*.proto ON TESTING only
 git add .
-git commit -m "Promote PR #42 to staging: Add Match RPC (CM-123)"
-git push origin staging
+git commit -m "Promote PR #42 to testing: Add Match RPC (CM-123)"
+git push origin testing
 ```
 
 After each push:
 
-- **Publish staging** runs → new `{tag}-staging.{run}` / `@staging`
-- Use the `Promote PR #N to staging: …` commit message so the workflow can comment on the correct PR
+- **Publish testing** runs → new `{tag}-testing.{run}` / `@testing`
+- Use the `Promote PR #N to testing: …` commit message so the workflow can comment on the correct PR
 
-If the next WIP PR conflicts with what is already on `staging`, resolve on **`staging`** again — do not update the PR branch to absorb `staging`.
+If the next WIP PR conflicts with what is already on `testing`, resolve on **`testing`** again — do not update the PR branch to absorb `testing`.
 
 #### Step 4 — Continue normal flow
 
-When QA passes for a PR, squash-merge that PR to `main` (section 6). After all relevant releases, recreate `staging` from `main` again to start the next QA cycle.
+When QA passes for a PR, squash-merge that PR to `main` (section 6). After all relevant releases, recreate `testing` from `main` again to start the next QA cycle.
 
 ### 6. Stable release — merge to main
 
@@ -233,7 +233,7 @@ On merge:
 | `patch` / `minor` / `major` | Tag + release + `@latest` dry-run log |
 | `none` | No tag, no release, no publish |
 
-Then **recreate `staging` from `main`** in the GitHub branches UI and re-promote any remaining WIP PRs (section 5).
+Then **recreate `testing` from `main`** in the GitHub branches UI and re-promote any remaining WIP PRs (section 5).
 
 ### 7. Docs-only PRs (`none`)
 
@@ -248,11 +248,11 @@ Then **recreate `staging` from `main`** in the GitHub branches UI and re-promote
 ```text
 PR opened → version-impact + @pr-{N} preview
     ↓
-ready-for-qa → staging (@staging)     ← conflicts fixed on staging, not PR
+ready-for-qa → testing (@testing)     ← conflicts fixed on testing, not PR
     ↓
 QA pass → squash-merge PR → main (@latest + GitHub Release)
     ↓
-delete + recreate staging from main (GitHub UI) → re-promote WIP PRs locally (one by one)
+delete + recreate testing from main (GitHub UI) → re-promote WIP PRs locally (one by one)
 ```
 
 ---
@@ -286,14 +286,14 @@ Each publish job prints a banner and writes a **Job summary**:
 | `version-impact` fails: none + proto file | Change impact to patch/minor/major, or restrict PR to allowlisted paths |
 | `Invalid package.json` / `ERR_INVALID_PACKAGE_CONFIG` | Remove `//` comments from `package.json`; never edit `version` manually |
 | No PR comment | Check workflow has `pull-requests: write`; bot comments are upserted (one per topic) |
-| Promote failed / conflict | Resolve on **`staging`** locally — see [Staging merge conflicts](#4-staging-merge-conflicts-pr-stays-as-is). Do **not** merge `staging` into the PR. |
+| Promote failed / conflict | Resolve on **`testing`** locally — see [Testing merge conflicts](#4-testing-merge-conflicts-pr-stays-as-is). Do **not** merge `testing` into the PR. |
 | Promote does nothing | Label must be exactly `ready-for-qa`; PR must target `main` |
 | Release failed: tag exists | A release with that version already exists — check latest tag |
-| Staging out of date / after release | Recreate `staging` from `main` in GitHub branches UI — see [Recreate staging](#5-recreate-staging-and-re-promote-wip-prs) |
-| `ready-for-qa` but not on staging after recreate | Re-promote manually onto `staging` (label does not auto-retrigger) |
+| Testing out of date / after release | Recreate `testing` from `main` in GitHub branches UI — see [Recreate testing](#5-recreate-testing-and-re-promote-wip-prs) |
+| `ready-for-qa` but not on testing after recreate | Re-promote manually onto `testing` (label does not auto-retrigger) |
 
 ---
 
 ## After the demo
 
-If the flow is approved, copy workflows into `cm_protos` and replace `scripts/publish.sh` with real CodeArtifact publish in production only. Keep [docs/VERSIONING_POLICY.md](docs/VERSIONING_POLICY.md) as the team reference.
+If the flow is approved, copy workflows into `cm_protos`, implement `scripts/publish-codeartifact.sh` (see stub + workflow comments), and keep [docs/VERSIONING_POLICY.md](docs/VERSIONING_POLICY.md) as the team reference.

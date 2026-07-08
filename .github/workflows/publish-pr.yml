@@ -100,6 +100,8 @@ jobs:
           VERSION="$(./scripts/compute-version.sh pr "${VERSION_IMPACT}" "${PR_NUMBER}" "${GITHUB_RUN_NUMBER}")"
           echo "VERSION=${VERSION}" >> "$GITHUB_ENV"
           export VERSION
+          # DRY RUN — DevOps: replace ./scripts/publish.sh with CodeArtifact publish
+          # (e.g. ./scripts/publish-codeartifact.sh) in cm_protos production.
           ./scripts/publish.sh
 
       - name: Comment on PR
@@ -144,7 +146,7 @@ jobs:
                 `- **Dist-tag:** \`${tag}\``,
                 `- **Would install:** \`pnpm add @lifestance/protos-demo@${tag}\``,
                 '',
-                '_Add label \`ready-for-qa\` when this change should enter the staging channel._'
+                '_Add label \`ready-for-qa\` when this change should enter the testing channel._'
               ].join('\n');
             }
 

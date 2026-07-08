@@ -1,8 +1,8 @@
-name: Publish staging (dry run)
+name: Publish testing (dry run)
 
 on:
   push:
-    branches: [staging]
+    branches: [testing]
   workflow_dispatch:
 
 permissions:
@@ -10,7 +10,7 @@ permissions:
   pull-requests: write
 
 concurrency:
-  group: publish-staging
+  group: publish-testing
   cancel-in-progress: false
 
 jobs:
@@ -24,14 +24,16 @@ jobs:
       - name: Compute version and publish (dry run)
         id: publish
         env:
-          CHANNEL: STAGING
-          DIST_TAG: staging
+          CHANNEL: TESTING
+          DIST_TAG: testing
         run: |
           chmod +x scripts/*.sh
-          VERSION="$(./scripts/compute-version.sh staging "${GITHUB_RUN_NUMBER}")"
+          VERSION="$(./scripts/compute-version.sh testing "${GITHUB_RUN_NUMBER}")"
           echo "VERSION=${VERSION}" >> "$GITHUB_ENV"
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
           export VERSION
+          # DRY RUN — DevOps: replace ./scripts/publish.sh with CodeArtifact publish
+          # (e.g. ./scripts/publish-codeartifact.sh) in cm_protos production.
           ./scripts/publish.sh
 
       - name: Resolve promoted PR from commit message
@@ -59,19 +61,19 @@ jobs:
             const version = process.env.VERSION;
 
             const body = [
-              '### DRY RUN — Staging publish',
+              '### DRY RUN — Testing publish',
               '',
-              'This PR was promoted to `staging`. No package was published. In production this would publish to CodeArtifact:',
+              'This PR was promoted to `testing`. No package was published. In production this would publish to CodeArtifact:',
               '',
               `- **Version:** \`${version}\``,
-              `- **Dist-tag:** \`staging\``,
-              `- **Would install:** \`pnpm add @lifestance/protos-demo@staging\``,
+              `- **Dist-tag:** \`testing\``,
+              `- **Would install:** \`pnpm add @lifestance/protos-demo@testing\``,
               '',
               '_After QA passes, squash-merge this PR to `main` for a stable release._'
             ].join('\n');
 
             await upsertPrComment(github, context, core, {
-              marker: 'publish-staging',
+              marker: 'publish-testing',
               body,
               prNumber: pr,
             });
