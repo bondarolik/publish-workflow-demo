@@ -68,54 +68,137 @@ Every workflow supports **Run workflow** for manual demo triggers.
 
 ---
 
-## Live demo script (~10 min)
+## How to open and ship a PR
 
-### Scene 1 — PR channel
+End-to-end flow for a proto change targeting `main`. The PR branch stays the canonical proposal for `main` — integration happens on `staging` only.
 
-1. `git checkout -b CM-123-add-rpc`
-2. Edit `contracts/demo.proto`
-3. Open PR → `main` — check **minor** under Version Impact
-4. Show **`version-impact`** check passing
-5. Show **Publish PR pre-release** in Actions:
-   - Job log banner: `DRY RUN — would publish … @pr-{N}`
-   - Preview version e.g. `1.3.0-pr.3.7` (next minor from latest tag)
-   - PR comment with version string
+### 1. Create the branch and change
 
-### Scene 2 — QA / staging channel
+```bash
+git fetch origin main
+git checkout -b CM-123-add-match-rpc origin/main
+# edit contracts/*.proto (or docs-only files)
+git add .
+git commit -m "feat(proto): add Match RPC (CM-123)"
+git push -u origin CM-123-add-match-rpc
+```
 
-1. Add label **`ready-for-qa`** on the PR
-2. Show **Promote to staging** → new squash commit on `staging`
-3. Show **Publish staging** triggered by push:
-   - Log: `1.2.0-staging.{run}` / `@staging`
-   - PR comment with staging version and `@staging` install hint
+Open a PR → `main`. The template pre-fills the description.
 
-### Scene 3 — Stable release
+### 2. Declare version impact
 
-1. Squash-merge PR to `main` (version impact **minor** selected in PR)
-2. Show **Publish stable release**:
-   - Log: would publish `@latest` (dry run — no CodeArtifact)
-   - Creates git tag e.g. `1.3.0` and a GitHub Release with auto-generated notes
-3. Run **Reset staging from main** (manual)
+In the PR description, check **exactly one** box under **Version Impact**:
 
-### Scene 4 — Docs-only (none)
+| Impact | When to use |
+|--------|-------------|
+| `patch` | Backward-compatible bug fix |
+| `minor` | New backward-compatible capability |
+| `major` | Breaking change — also needs guardian label (step 2b) |
+| `none` | Docs / `.github` / `*.md` only — no release |
 
-1. Open PR that only changes `README.md` or `.github/**`
+**Do not edit `package.json`** — version is computed from git tags and synced after stable release.
+
+Wait for **`version-impact`** to pass. On success, **Publish PR pre-release** runs and comments with a preview version and `@pr-{N}`.
+
+### 2b. Major releases only
+
+If **major** is selected:
+
+1. Tech meeting agrees on the breaking change
+2. Git guardian adds label **`version:major-approved`**
+3. `version-impact` passes → pre-release preview updates
+4. Merge only when green
+
+### 3. QA — promote to staging
+
+When the PR is ready for QA, add label **`ready-for-qa`**.
+
+This triggers **Promote to staging** (squash-merge of the PR branch into `staging`). On success:
+
+- A new commit lands on `staging`
+- **Publish staging** runs → logs `{tag}-staging.{run}` / `@staging`
+- A PR comment documents the staging version
+
+QA consumers install: `pnpm add @lifestance/protos-demo@staging`
+
+### 4. Staging merge conflicts (PR stays as-is)
+
+**Never merge `staging` into the PR branch.** The PR must remain a clean proposal for `main`.
+
+Conflicts are resolved **on `staging` only** — either by the bot or manually when automated promote fails.
+
+#### When automated promote fails
+
+The PR may show a **Promote to staging — merge conflict** comment. The PR branch does not need to change.
+
+**Recommended procedure (git guardian or developer with push access to `staging`):**
+
+```bash
+git fetch origin staging CM-123-add-match-rpc
+git checkout staging
+git pull origin staging
+
+# bring PR changes into staging (same intent as the bot)
+git merge --squash origin/CM-123-add-match-rpc
+
+# resolve conflicts in contracts/*.proto ON STAGING — not on the PR branch
+git add .
+git commit -m "Promote PR #42 to staging: Add Match RPC (CM-123)"
+git push origin staging
+```
+
+Use the real PR number and title in the commit message so **Publish staging** can comment on the PR.
+
+After push:
+
+- **Publish staging** runs automatically → new `@staging` version
+- The open PR toward `main` is unchanged
+
+#### When to reset `staging`
+
+Run **Reset staging from main** (manual workflow) after a stable release to `main`, or when abandoning the current QA batch. This does not modify open PRs.
+
+#### Parallel PRs on staging
+
+Multiple PRs can be promoted to `staging`. The second promote may conflict if protos overlap — use the manual procedure above. For simpler operations, promote and release **one PR at a time**, then reset `staging`.
+
+### 5. Stable release — merge to main
+
+After QA passes, **squash-merge the PR to `main`** (PR branch unchanged up to this point).
+
+On merge:
+
+- **Publish stable release** computes the next semver from the latest tag + PR version impact
+- Creates a git tag and GitHub Release (auto-generated notes)
+- Syncs `package.json` on `main` via bot commit `[skip ci]`
+- Comments on the merged PR
+
+| Version impact | Result on merge |
+|----------------|-----------------|
+| `patch` / `minor` / `major` | Tag + release + `@latest` dry-run log |
+| `none` | No tag, no release, no publish |
+
+Then run **Reset staging from main** so the next QA cycle starts from the released baseline.
+
+### 6. Docs-only PRs (`none`)
+
+1. Change only allowlisted paths (`*.md`, `docs/**`, `.github/**`, etc.)
 2. Check **none** under Version Impact
-3. **`version-impact`** passes → **Publish PR** comments that pre-release is skipped
-4. Merge → **Publish stable release** skips tag/release and **comments on the PR**
+3. `version-impact` passes → pre-release skipped (PR comment explains)
+4. Merge to `main` → stable release skipped (PR comment explains)
+5. No `ready-for-qa` needed
 
-### Scene 5 — Major (optional)
+### Quick reference
 
-1. Open PR with breaking proto change; check **major** under Version Impact
-2. **`version-impact`** fails → PR comment explains guardian approval is required
-3. Guardian adds **`version:major-approved`** → PR comment confirms major is cleared + pre-release preview
-4. Merge → stable release comment with `X.0.0` tag + GitHub Release link
-
-### Scene 6 — Parallel PRs
-
-1. Open a second PR with different version impact
-2. Both get their own `@pr-{N}` preview versions
-3. Promote both to `staging` — show merge conflict if they touch the same file
+```text
+PR opened → version-impact + @pr-{N} preview
+    ↓
+ready-for-qa → staging (@staging)     ← conflicts fixed on staging, not PR
+    ↓
+QA pass → squash-merge PR → main (@latest + GitHub Release)
+    ↓
+reset staging from main
+```
 
 ---
 
@@ -148,7 +231,7 @@ Each publish job prints a banner and writes a **Job summary**:
 | `version-impact` fails: none + proto file | Change impact to patch/minor/major, or restrict PR to allowlisted paths |
 | `Invalid package.json` / `ERR_INVALID_PACKAGE_CONFIG` | Remove `//` comments from `package.json`; never edit `version` manually |
 | No PR comment | Check workflow has `pull-requests: write`; bot comments are upserted (one per topic) |
-| Promote failed / conflict | See upserted **Promote to staging** comment on the PR |
+| Promote failed / conflict | Resolve on **`staging`** locally — see [Staging merge conflicts](#4-staging-merge-conflicts-pr-stays-as-is). Do **not** merge `staging` into the PR. |
 | Promote does nothing | Label must be exactly `ready-for-qa`; PR must target `main` |
 | Release failed: tag exists | A release with that version already exists — check latest tag |
 | Staging out of date | Run **Reset staging from main** |
