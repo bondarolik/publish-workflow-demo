@@ -47,6 +47,7 @@ Full rules: [docs/VERSIONING_POLICY.md](docs/VERSIONING_POLICY.md).
 
 | Doc | Contents |
 |-----|----------|
+| [docs/RELEASE_CANDIDATE_REVIEW.md](docs/RELEASE_CANDIDATE_REVIEW.md) | Approval summary: problem, solution, policy, flows, troubleshooting |
 | [docs/SETUP.md](docs/SETUP.md) | Labels, branch protection, first push |
 | [docs/SHIPPING_A_PR.md](docs/SHIPPING_A_PR.md) | End-to-end contributor flow |
 | [docs/TESTING_BRANCH.md](docs/TESTING_BRANCH.md) | Merge conflicts, parallel PRs, recreate `testing` |
